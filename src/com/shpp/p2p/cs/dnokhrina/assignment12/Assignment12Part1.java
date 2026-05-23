@@ -2,6 +2,16 @@ package com.shpp.p2p.cs.dnokhrina.assignment12;
 
 import java.util.HashSet;
 
+/**
+ * Receives the name of the file as args[0]. If it's not empty - reads file, if it's null - reads "test.jpg".
+ * Treats image as black-and-white image by using only average of red, green and blue values.
+ * Detects and counts contrasting silhouettes on the image by checking row by row, but if it finds a contrasting pixel
+ * - calls DFS algorithm to map this silhouette and continues row-by-row scanning, but skipping already scanned lines.
+ * <p>
+ * Note: "Silhouette" counts as connected pixels of contrasting color (doesn't check whether color is the same).
+ * If a black circle is inside another black circle, but they don't connect - it will be counted as two separate
+ * silhouettes
+ */
 public final class Assignment12Part1 {
 
     //=========== DEBUG OPTIONS ========//
@@ -26,6 +36,7 @@ public final class Assignment12Part1 {
      */
     public static final double THRESHOLD_IN_PERCENT = 20.0 / 100;
 
+    /** Prints the image of counted silhouettes */
     private static final boolean PRINT_MATRIX = false;
 
     // ============= END OF DEBUG ==================
@@ -71,12 +82,15 @@ public final class Assignment12Part1 {
             }
         }
         System.out.println(silhouettes.size());
-        printSearched(searched);
     }
 
     /**
      * This method isn't used, but can be useful to demonstrate the result. Due to limits of the console,
      * I used literally 10px x 10px images for this method.
+     * <p>
+     * 0                => not checked pixel
+     * -1               => the background
+     * 1, 2, 3, etc.    => the id of silhouette.
      *
      * @param searched matrix of checked pixels
      */
