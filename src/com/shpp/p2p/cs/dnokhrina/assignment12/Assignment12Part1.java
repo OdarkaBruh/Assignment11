@@ -1,6 +1,9 @@
 package com.shpp.p2p.cs.dnokhrina.assignment12;
 
-import java.util.HashSet;
+import javax.imageio.ImageIO;
+import java.awt.image.BufferedImage;
+import java.io.File;
+import java.io.IOException;
 
 /**
  * Receives the name of the file as args[0]. If it's not empty - reads file, if it's null - reads "test.jpg".
@@ -16,36 +19,33 @@ public final class Assignment12Part1 {
 
     //=========== DEBUG OPTIONS ========//
     /**
-     * if true => variable "THRESHOLD_SET_VALUE" will be used
-     * if false => variable "THRESHOLD_IN_PERCENT" will be used
+     * if true -> processor will treat COLOR_THRESHOLD_VALUE as a percentage derived from
+     * the difference between the minimum and maximum color values.
+     * if false -> The color will be treated as the background color if
+     * the difference between it and the background is greater than COLOR_THRESHOLD_VALUE
      */
-    public static final boolean THRESHOLD_IS_SET_VARIABLE_NOT_PERCENT = false;
+    static final boolean COLOR_THRESHOLD_IS_IN_PERCENT = true;
     /**
-     * Difference between value of the background and color to count this color as the noise of background.
-     * So, if background = 0 and THRESHOLD_SET_VALUE = 10, all colors from 0 to 10 will be counted as a background.
+     * The minimum difference between the background value and a color, so that the color is not considered part
+     * of the background.
      * <p>
-     * More noisy picture => higher value
-     * Should be in range from 0 to 250.
+     * So, if the background color is 20 and COLOR_THRESHOLD_VALUE is 10, all colors with a difference
+     * between 10 and 30 will be considered part of the background.
      */
-    public static final int THRESHOLD_SET_VALUE = 0;
+    static final int COLOR_THRESHOLD_VALUE = 20;
 
     /**
-     * percent of difference between silhouettes and background (aka "(maxValue-minValue)/percent"
-     * more sensitive, so will work better if photos have different contrast levels
-     *
+     * if true -> processor will treat NOISE_THRESHOLD_VALUE as a percentage derived from the biggest silhouette.
+     * if false -> just looks if a silhouette has >=NOISE_THRESHOLD_VALUE pixels;
      */
-    public static final double THRESHOLD_IN_PERCENT = 20.0 / 100;
-
-    /** Prints the image of counted silhouettes */
-    private static final boolean PRINT_MATRIX = false;
+    static final boolean NOISE_THRESHOLD_IS_IN_PERCENT = true;
+    /** Number of pixels needed to NOT count silhouette as noise */
+    static final int NOISE_THRESHOLD_VALUE = 10;
 
     // ============= END OF DEBUG ==================
 
-    /** All found silhouettes */
-    private static final HashSet<Silhouette> silhouettes = new HashSet<>();
-
     /**
-     * Reads first argument and if it is not empty - calls to read a file with this name.
+     * Reads first argument and if it is not empty - calls to create image from this file.
      * If args is empty - reads default file "test.jpg"
      * <p>
      * Then process this picture
@@ -53,58 +53,64 @@ public final class Assignment12Part1 {
      * @param args name of the file (with ext) to read
      */
     public static void main(String[] args) {
-        if (args.length == 0) processImage(new ImageManager("test.jpg"));
-        else processImage(new ImageManager(args[0]));
+        String fileName = args.length == 0 ? "test.jpg" : args[0];
+
+        Image image = new Image(readImage(fileName));
+        ImageProcessor imageProcessor = createImageProcessor(image);
+
+        processImage(imageProcessor);
     }
 
     /**
-     * Counts silhouettes on the pictures.
-     * <p>
-     * Notes:
-     * 1) Counts pixels as "touching" if they are joined diagonally;
-     * 2) DEFAULT_THRESHHOLD sensitive
+     * creates instance of ImageProcessor, calculates color threshold and background color
      *
-     * @param imageManager object containing information about image: its width, height, rgb matrix, etc.
+     * @param image image which will be processed by this processor later
+     * @return created instance of ImageProcessor
      */
-    private static void processImage(ImageManager imageManager) {
-        int[][] searched = new int[imageManager.height][imageManager.width];
-
-        for (int h = 0; h < searched.length; h++) {
-            for (int w = 0; w < searched[0].length; w++) {
-                if (searched[h][w] == 0) {
-                    if (imageManager.isObject(w, h)) {
-                        Silhouette silhouette = new Silhouette();
-                        silhouette.checkNearestPixelsForThisSilhouette(w, h, searched, imageManager);
-                        silhouettes.add(silhouette);
-                        if (PRINT_MATRIX) printSearched(searched);
-                    } else searched[h][w] = -1;
-                }
-            }
-        }
-        System.out.println(silhouettes.size());
+    private static ImageProcessor createImageProcessor(Image image) {
+        int backgroundColor = image.calculateMainColor();
+        int colorThreshold = COLOR_THRESHOLD_IS_IN_PERCENT ?
+                (image.getMaxColorDifference() * COLOR_THRESHOLD_VALUE / 100) :
+                COLOR_THRESHOLD_VALUE;
+        return new ImageProcessor(image, colorThreshold, backgroundColor);
     }
 
     /**
-     * This method isn't used, but can be useful to demonstrate the result. Due to limits of the console,
-     * I used literally 10px x 10px images for this method.
-     * <p>
-     * 0                => not checked pixel
-     * -1               => the background
-     * 1, 2, 3, etc.    => the id of silhouette.
+     * processes Image inside ImageProcessor: finds silhouettes, cleans them, prints result.
      *
-     * @param searched matrix of checked pixels
+     * @param imageProcessor processor with needed image to process
      */
-    private static void printSearched(int[][] searched) {
-        System.out.println("\n=============");
-        StringBuilder stringBuilder = new StringBuilder();
-        for (int h = 0; h < searched.length; h++) {
-            stringBuilder.append("\n");
-            for (int w = 0; w < searched[0].length; w++) {
-                if (searched[h][w] == -1) stringBuilder.append(" - ");
-                else if (searched[h][w] == 0) stringBuilder.append(" 0 ");
-                else stringBuilder.append(" ").append(searched[h][w]).append(" ");
-            }
-        }
-        System.out.println(stringBuilder);
+    private static void processImage(ImageProcessor imageProcessor) {
+        imageProcessor.findSilhouettes();
+
+        int noiseThreshold = NOISE_THRESHOLD_IS_IN_PERCENT ?
+                imageProcessor.convertNoisePercentToValue(NOISE_THRESHOLD_VALUE)
+                : NOISE_THRESHOLD_VALUE;
+        imageProcessor.cleanNoiseFromSilhoettes(noiseThreshold);
+
+        System.out.println("Result: " + imageProcessor.getSilhouettesCount());
+        imageProcessor.savePicture("Output");
     }
+
+    /**
+     * Reads the image from file.
+     *
+     * @param name file's name
+     * @return BufferedImage of read image
+     */
+    static BufferedImage readImage(String name) {
+        try {
+            File inputFile = new File(name);
+            if (!inputFile.exists()) {
+                name = name.substring(0, name.length() - 3) + (name.endsWith("jpg") ? "png" : "jpg");
+                inputFile = new File(name);
+            }
+            return ImageIO.read(inputFile);
+        } catch (IOException e) {
+            e.printStackTrace();
+            throw new RuntimeException("Error while reading image.");
+        }
+    }
+
+
 }

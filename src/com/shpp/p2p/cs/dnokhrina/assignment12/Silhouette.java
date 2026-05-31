@@ -1,46 +1,75 @@
 package com.shpp.p2p.cs.dnokhrina.assignment12;
 
 /**
- * (Note: This class is really bare right now, but I think that second part of the task will have something
- * to do with this)
- * Contains id of the silhouette and general counter.
+ * Contains information about each silhouette and represents it.
  */
 public class Silhouette {
-    /** Count of created silhouettes */
-    static int silhouetteCount = 0;
-    /** id of this silhouette */
-    final int id;
+    /**
+     * a map of all silhouettes as of the time the last silhouette was created. If a new silhouette is mapped by
+     * another method, it will identify where the new silhouette are by comparing where the values have changed.
+     */
+    private static boolean[][] allSilhouettesMap;
+    /** the mask of this specific silhouette */
+    private final boolean[][] silhouetteMask;
 
-    /** Constructor: increase mumber of silhouettes and sets value to this one as id*/
-    public Silhouette() {
-        silhouetteCount++;
-        id = silhouetteCount;
+    /**
+     * creates new instance of silhouette and creates its mask by comparing with matrix of all previous silhouettes
+     *
+     * @param newMap the current (updated, with this new silhouette) matrix of silhouettes
+     */
+    Silhouette(boolean[][] newMap) {
+        if (allSilhouettesMap == null) {
+            allSilhouettesMap = new boolean[newMap.length][newMap[0].length];
+        }
+        silhouetteMask = createMask(newMap);
     }
 
     /**
-     * Looks at 8 neighbouring pixels and if they are not background and weren't checked before - "goes deeper"
-     * by calling itself, but now with these new coordinates at center. Recursion will be ended when all silhouette
-     * is mapped.
+     * Calculates mask by comparing new and old version of silhouettes matrix
      *
-     * @param posX x-coordinate of central pixel
-     * @param posY y-coordinate of central pixel
-     * @param searched matrix which has information was this pixel mapped before or not
-     * @param imageManager manages image: gets width / height and checks if it is object or a background.
+     * @param newSilhouetteMap the current (updated, with this new silhouette) matrix of silhouettes
+     * @return matric with a mask of this silhouette
      */
-    public void checkNearestPixelsForThisSilhouette(int posX, int posY, int[][] searched, ImageManager imageManager) {
-        searched[posY][posX] = id;
-        int x;
-        int y;
-        for (int i = -1; i < 2; i++) {
-            y = posY + i;
-            for (int j = -1; j < 2; j++) {
-                x = posX + j;
-                if (x > 0 && y > 0 && x < imageManager.width && y < imageManager.height && searched[y][x] == 0) {
-                    if (imageManager.isObject(x, y)) checkNearestPixelsForThisSilhouette(x, y, searched, imageManager);
-                    else searched[y][x] = -1;
+    private static boolean[][] createMask(boolean[][] newSilhouetteMap) {
+        boolean[][] silhouetteMask = new boolean[newSilhouetteMap.length][newSilhouetteMap[0].length];
+        for (int y = 0; y < newSilhouetteMap.length; y++) {
+            for (int x = 0; x < newSilhouetteMap[0].length; x++) {
+                if (allSilhouettesMap[y][x] != newSilhouetteMap[y][x]) {
+                    allSilhouettesMap[y][x] = true;
+                    silhouetteMask[y][x] = true;
                 }
             }
         }
+        return silhouetteMask;
     }
 
+    /**
+     * Counts how many pixels this silhouette has.
+     *
+     * @return the number of pixels
+     */
+    int getPixelCount() {
+        int pixels = 0;
+        for (int y = 0; y < silhouetteMask.length; y++) {
+            for (int x = 0; x < silhouetteMask[0].length; x++) {
+                if (silhouetteMask[y][x]) pixels++;
+            }
+        }
+        return pixels;
+    }
+
+    /**
+     * Applies mask of this silhouette to the given matrix
+     *
+     * @param onTheMask matrix to change
+     * @return changed matrix (with applied mask now)
+     */
+    boolean[][] applyMaskTo(boolean[][] onTheMask) {
+        for (int y = 0; y < onTheMask.length; y++) {
+            for (int x = 0; x < onTheMask[0].length; x++) {
+                if (silhouetteMask[y][x]) onTheMask[y][x] = !onTheMask[y][x];
+            }
+        }
+        return onTheMask;
+    }
 }
