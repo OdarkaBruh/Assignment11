@@ -26,4 +26,10 @@ public class Silhouette {
     int getPixelCount() {
         return pixels.size();
     }
+
+    void deleteSilhouette(){
+        for (Pixel pixel: pixels) {
+            pixel.setSilhouette(false);
+        }
+    }
 }

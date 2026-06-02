@@ -4,6 +4,8 @@ import javax.imageio.ImageIO;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * Receives the name of the file as args[0]. If it's not empty - reads file, if it's null - reads "test.jpg".
@@ -34,13 +36,10 @@ public final class Assignment12Part1 {
      */
     static final int COLOR_THRESHOLD_VALUE = 20;
 
-    /**
-     * if true -> processor will treat NOISE_THRESHOLD_VALUE as a percentage derived from the biggest silhouette.
-     * if false -> just looks if a silhouette has >=NOISE_THRESHOLD_VALUE pixels;
-     */
-    static final boolean NOISE_THRESHOLD_IS_IN_PERCENT = true;
+
+    static final int NOISE_REMOVAL_RADIUS = 2;
     /** Number of pixels needed to NOT count silhouette as noise */
-    static final int NOISE_THRESHOLD_VALUE = 10;
+    static final int STUCK_THRESHOLD = 1;
 
     // ============= END OF DEBUG ==================
 
@@ -55,24 +54,8 @@ public final class Assignment12Part1 {
     public static void main(String[] args) {
         String fileName = args.length == 0 ? "test.jpg" : args[0];
 
-        Image image = new Image(readImage(fileName));
-        ImageProcessor imageProcessor = createImageProcessor(image);
-
+        ImageProcessor imageProcessor = new ImageProcessor(readImage(fileName));
         processImage(imageProcessor);
-    }
-
-    /**
-     * creates instance of ImageProcessor, calculates color threshold and background color
-     *
-     * @param image image which will be processed by this processor later
-     * @return created instance of ImageProcessor
-     */
-    private static ImageProcessor createImageProcessor(Image image) {
-        int backgroundColor = image.calculateMainColor();
-        int colorThreshold = COLOR_THRESHOLD_IS_IN_PERCENT ?
-                (image.getMaxColorDifference() * COLOR_THRESHOLD_VALUE / 100) :
-                COLOR_THRESHOLD_VALUE;
-        return new ImageProcessor(image, colorThreshold, backgroundColor);
     }
 
     /**
@@ -81,17 +64,54 @@ public final class Assignment12Part1 {
      * @param imageProcessor processor with needed image to process
      */
     private static void processImage(ImageProcessor imageProcessor) {
+        int colorThreshold = COLOR_THRESHOLD_IS_IN_PERCENT ?
+                (getDifferenceBetweenMinAndMaxColor(imageProcessor.getPixelMap()) * COLOR_THRESHOLD_VALUE / 100) :
+                COLOR_THRESHOLD_VALUE;
+
+        int backgroundColor = calculateMainColor(imageProcessor.getPixelMap());
+
+        imageProcessor.setColorThreshold(colorThreshold);
+        imageProcessor.setBackgroundColor(backgroundColor);
         imageProcessor.findSilhouettes();
+        //System.out.println(imageProcessor.getSilhouettesCount());
+        Filters f = new Filters(imageProcessor.getPixelMap(),"Output");
 
-        int noiseThreshold = NOISE_THRESHOLD_IS_IN_PERCENT ?
-                imageProcessor.convertNoisePercentToValue(NOISE_THRESHOLD_VALUE)
-                : NOISE_THRESHOLD_VALUE;
-        imageProcessor.cleanNoiseFromSilhoettes(noiseThreshold);
+        f.cleanData(1);
 
-        System.out.println("Result: " + imageProcessor.getSilhouettesCount());
-        imageProcessor.savePicture("Output");
     }
 
+    private static int getDifferenceBetweenMinAndMaxColor(Pixel[][] pixelMap) {
+        int max = pixelMap[0][0].getColor();
+        int min = pixelMap[0][0].getColor();
+        for (int y = 0; y < pixelMap.length; y++) {
+            for (int x = 0; x < pixelMap[0].length; x++) {
+                if (min > pixelMap[y][x].getColor()) min = pixelMap[y][x].getColor();
+                else if (max < pixelMap[y][x].getColor()) max = pixelMap[y][x].getColor();
+            }
+        }
+        return ColorCalculator.calculateDistanceBetweenColors(min,max);
+    }
+
+    private static int calculateMainColor(Pixel[][] pixelMap){
+        HashMap<Integer, Integer> colors = new HashMap<>();
+        for (int y = 0; y < pixelMap.length; y++) {
+            for (int x = 0; x < pixelMap[0].length; x++) {
+                colors.put(pixelMap[y][x].getColor(), colors.getOrDefault(pixelMap[y][x].getColor(), 0) + 1);
+            }
+        }
+
+        int color = 0;
+        int max = 0;
+
+        for (Map.Entry<Integer, Integer> set : colors.entrySet()) {
+            if (max < set.getValue()) {
+                max = set.getValue();
+                color = set.getKey();
+            }
+        }
+
+        return color;
+    }
     /**
      * Reads the image from file.
      *
@@ -111,6 +131,4 @@ public final class Assignment12Part1 {
             throw new RuntimeException("Error while reading image.");
         }
     }
-
-
 }
